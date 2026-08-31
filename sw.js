@@ -1,5 +1,5 @@
-const CACHE_NAME="bodygym-pt-v7";
-const APP_ASSETS=["./","./index.html","./style.css","./app.js","./manifest.json","./data/torso-a.json","./data/pierna-a.json","./data/torso-b.json","./data/pierna-b.json","./assets/icon.svg","./assets/dominadas.svg","./assets/press_inclinado.svg","./assets/poleas.svg","./assets/contractor.svg","./assets/pierna_maquinas.svg","./assets/hiperextensiones.svg","./assets/zona_azul.svg"];
+const CACHE_NAME="bodygym-pt-v8";
+const APP_ASSETS=["./","./index.html","./style.css?v=9","./app.js?v=9","./manifest.json","./data/torso-a.json","./data/pierna-a.json","./data/torso-b.json","./data/pierna-b.json","./assets/icon.svg","./assets/dominadas.svg","./assets/press_inclinado.svg","./assets/poleas.svg","./assets/contractor.svg","./assets/pierna_maquinas.svg","./assets/hiperextensiones.svg","./assets/zona_azul.svg"];
 self.addEventListener("install",event=>{
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_ASSETS)).catch(()=>{}));
@@ -14,7 +14,7 @@ self.addEventListener("fetch",event=>{
   if(event.request.method!=="GET") return;
   event.respondWith(
     fetch(event.request,{cache:"no-store"}).then(response=>{
-      if(response && response.ok && event.request.url.startsWith(self.location.origin)){
+      if(response&&response.ok&&event.request.url.startsWith(self.location.origin)){
         const copy=response.clone();
         caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)).catch(()=>{});
       }
