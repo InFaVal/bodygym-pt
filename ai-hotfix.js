@@ -88,6 +88,19 @@
     }finally{clearTimeout(timer)}
   }
 
+  function retryableJsonError(error){
+    return /JSON generado no se pudo interpretar|respuesta inválida|malformed|JSON.*interpretar/i.test(String(error?.message||""));
+  }
+  async function analyzeWithRetry(payload){
+    try{return await postJson("/api/analyze-pantry",payload)}
+    catch(first){
+      if(!retryableJsonError(first))throw first;
+      setStatus("↻ Gemini respondió con formato irregular. Reintentando automáticamente…","info");
+      await new Promise(r=>setTimeout(r,650));
+      return postJson("/api/analyze-pantry",payload);
+    }
+  }
+
   window.analyzeAiPantryPhoto=async function(input){
     const file=input?.files?.[0];
     if(!file){setStatus("No se recibió ninguna foto.","error");return}
@@ -104,7 +117,7 @@
         .concat(Object.entries(s.pantryCustom).filter(([,v])=>v).map(([k])=>k));
       setStatus("🤖 Analizando con Gemini…","info");
       wakeTimer=setTimeout(()=>setStatus("⏳ Render puede estar despertando. Sigo esperando a Gemini…","info"),5000);
-      const data=await postJson("/api/analyze-pantry",{image,currentPantry:current});
+      const data=await analyzeWithRetry({image,currentPantry:current});
       clearTimeout(wakeTimer);wakeTimer=null;
       let added=0;
       (data.foods||[]).forEach(x=>{
