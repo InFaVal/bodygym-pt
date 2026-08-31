@@ -6,18 +6,18 @@
 <meta name="theme-color" content="#17365D">
 <title>BodyGym PT</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 <script>
 (function(){
   const key='bodygym_font_size';
   let size='xl';
-  try{ size=localStorage.getItem(key)||'xl'; }catch(e){}
-  if(!['normal','large','xl'].includes(size)) size='xl';
+  try{size=localStorage.getItem(key)||'xl'}catch(e){}
+  if(!['normal','large','xl'].includes(size))size='xl';
   document.documentElement.dataset.fontSize=size;
   window.setAppFontSize=function(next){
-    if(!['normal','large','xl'].includes(next)) return;
+    if(!['normal','large','xl'].includes(next))return;
     document.documentElement.dataset.fontSize=next;
-    try{ localStorage.setItem(key,next); }catch(e){}
+    try{localStorage.setItem(key,next)}catch(e){}
     document.querySelectorAll('[data-font-choice]').forEach(btn=>{
       const active=btn.dataset.fontChoice===next;
       btn.classList.toggle('active',active);
@@ -27,68 +27,66 @@
   document.addEventListener('DOMContentLoaded',()=>window.setAppFontSize(document.documentElement.dataset.fontSize||'xl'));
 })();
 </script>
-<style>
-:root{
-  --body-fs:30px;--header-title:26px;--header-sub:21px;--tab-fs:23px;--h2-fs:36px;--panel-p:28px;
-  --day-title:31px;--day-text:26px;--chip-fs:21px;--exercise-title:36px;--muted-head:24px;
-  --info-small:22px;--info-big:29px;--video-fs:26px;--summary-fs:26px;--label-fs:26px;
-  --control-fs:27px;--sets-fs:26px;--sets-input:28px;--list-fs:28px;--muted-fs:24px;--button-fs:26px;
-  --choice-fs:22px;--choice-h:66px;
-}
-html[data-font-size="large"]{
-  --body-fs:24px;--header-title:23px;--header-sub:18px;--tab-fs:20px;--h2-fs:30px;--panel-p:23px;
-  --day-title:26px;--day-text:22px;--chip-fs:18px;--exercise-title:30px;--muted-head:21px;
-  --info-small:19px;--info-big:25px;--video-fs:23px;--summary-fs:23px;--label-fs:23px;
-  --control-fs:24px;--sets-fs:23px;--sets-input:25px;--list-fs:24px;--muted-fs:21px;--button-fs:23px;
-  --choice-fs:20px;--choice-h:62px;
-}
-html[data-font-size="normal"]{
-  --body-fs:19px;--header-title:20px;--header-sub:16px;--tab-fs:17px;--h2-fs:25px;--panel-p:19px;
-  --day-title:22px;--day-text:18px;--chip-fs:15px;--exercise-title:25px;--muted-head:18px;
-  --info-small:16px;--info-big:21px;--video-fs:20px;--summary-fs:19px;--label-fs:19px;
-  --control-fs:20px;--sets-fs:19px;--sets-input:21px;--list-fs:20px;--muted-fs:18px;--button-fs:20px;
-  --choice-fs:18px;--choice-h:58px;
-}
-body{font-size:var(--body-fs)!important;padding-bottom:calc(106px + env(safe-area-inset-bottom));background:#f2f5f9;line-height:1.5}
-header{position:relative!important;padding:14px 12px 13px!important;border-radius:0 0 20px 20px;box-shadow:0 5px 18px #00000020}
-header h1{font-size:var(--header-title)!important;line-height:1.25;margin:0!important}
-header p{font-size:var(--header-sub)!important;line-height:1.35;margin-top:5px!important}
-.tabs{position:fixed!important;left:0;right:0;bottom:0;top:auto!important;z-index:100;grid-template-columns:repeat(4,1fr)!important;gap:5px;padding:8px 7px calc(8px + env(safe-area-inset-bottom))!important;background:#fff!important;border-top:1px solid #dfe3e8;box-shadow:0 -4px 18px #00000018}
-.tab-btn{min-height:74px!important;padding:9px 3px!important;border-radius:13px!important;font-size:var(--tab-fs)!important;font-weight:700!important}.tab-btn.active{background:#17365D!important;color:#fff!important}
-main{width:100%!important;max-width:none!important;margin:0!important;padding:12px 8px 26px!important}
-h2{font-size:var(--h2-fs)!important;margin:4px 0 14px!important;line-height:1.22}
-.panel,.exercise-card,.history-item,.measure-item{width:100%!important;border-radius:18px!important;padding:20px!important;margin-bottom:14px!important}
-.panel p{font-size:var(--panel-p)!important;line-height:1.5!important}
-.font-size-box{margin:18px 0 14px;padding:16px;border:1px solid #dce3ea;border-radius:16px;background:#f8fafc}
-.font-size-box .font-size-title{font-size:var(--label-fs)!important;font-weight:800;margin:0 0 12px!important}
-.font-size-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.font-choice{min-height:var(--choice-h)!important;padding:10px 6px!important;border:2px solid #d5dde6!important;border-radius:14px!important;background:#fff!important;color:#17365D!important;font-size:var(--choice-fs)!important;font-weight:800!important;line-height:1.15!important}
-.font-choice.active{background:#17365D!important;color:#fff!important;border-color:#17365D!important;box-shadow:0 3px 10px #17365D33}
-.days-grid{display:grid!important;grid-template-columns:1fr!important;gap:11px!important}.day-card{width:100%!important;min-height:154px!important;border-radius:16px!important;padding:21px 18px!important}.day-card h3{font-size:var(--day-title)!important;line-height:1.25!important;margin:0 0 8px!important}.day-card p{font-size:var(--day-text)!important;line-height:1.42!important;margin:6px 0!important}
-.chips{display:flex!important;flex-wrap:wrap!important;gap:7px!important}.chips span,.pill{font-size:var(--chip-fs)!important;padding:9px 12px!important;line-height:1.25!important}
-.row,.exercise-layout,.grid3{display:grid!important;grid-template-columns:1fr!important;gap:14px!important}.row>*{min-width:0!important;width:100%!important}.exercise-layout>div:first-child{order:1}.exercise-layout>div:last-child{order:0}
-.exercise-head{margin:-20px -20px 17px!important;padding:20px!important}.exercise-head h3{font-size:var(--exercise-title)!important;line-height:1.22!important}.exercise-head .muted{font-size:var(--muted-head)!important;line-height:1.4!important}
-.info-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:11px!important}.info{min-height:88px!important;padding:15px!important}.info small{font-size:var(--info-small)!important;line-height:1.25!important}.info b{font-size:var(--info-big)!important;line-height:1.25!important}
-.photo{display:block!important;width:100%!important;height:auto!important;max-height:none!important;aspect-ratio:4/3;object-fit:cover;border-radius:15px!important}.video-btn{display:block!important;width:100%!important;min-height:64px!important;text-align:center!important;padding:18px!important;border-radius:13px!important;font-size:var(--video-fs)!important}
-.summary{font-size:var(--summary-fs)!important;line-height:1.45!important;padding:16px!important;border-radius:14px!important}label{font-size:var(--label-fs)!important;line-height:1.3!important}input,select,textarea,button{min-height:68px!important;font-size:var(--control-fs)!important;padding:16px!important}textarea{min-height:110px!important}.sets{font-size:var(--sets-fs)!important}.sets td,.sets th{padding:14px 9px!important}.sets input{min-height:68px!important;font-size:var(--sets-input)!important}ul{padding-left:27px!important;font-size:var(--list-fs)!important}li{margin-bottom:10px!important;line-height:1.48!important}.muted{font-size:var(--muted-fs)!important;line-height:1.45!important}.secondary,.primary{font-size:var(--button-fs)!important}.history-item,.measure-item{font-size:var(--button-fs)!important}
-@media(max-width:390px){main{padding-left:6px!important;padding-right:6px!important}.panel,.exercise-card{padding:18px!important}.exercise-head{margin:-18px -18px 15px!important}.font-size-choices{gap:5px}.font-choice{padding-left:3px!important;padding-right:3px!important}}
-</style>
 </head>
 <body>
-<header><h1>BodyGym PT — Rutina, técnica y progresión</h1><p>Hipertrofia eficiente · 4 días · 55–75 min · técnica, progresión y seguimiento</p></header>
-<nav class="tabs"><button class="tab-btn active" data-tab="inicio">Inicio</button><button class="tab-btn" data-tab="rutina">Rutina</button><button class="tab-btn" data-tab="historial">Historial</button><button class="tab-btn" data-tab="medidas">Medidas</button></nav>
+<header>
+  <h1>BodyGym PT</h1>
+  <p>Entreno · dieta · progresión · seguimiento</p>
+</header>
+<nav class="tabs" aria-label="Navegación principal">
+  <button class="tab-btn active" data-tab="inicio">Inicio</button>
+  <button class="tab-btn" data-tab="rutina">Entreno</button>
+  <button class="tab-btn" data-tab="dieta">Dieta</button>
+  <button class="tab-btn" data-tab="progreso">Progreso</button>
+</nav>
 <main>
 <section id="inicio" class="tab active">
-<div class="panel"><h2>Qué hace la app</h2><p>Te muestra <b>qué ejercicio toca, qué máquina usar en Bodygym, el número si se conoce, foto, vídeo, técnica y progresión</b>. Registra peso, repeticiones, RIR, dolor y notas.</p>
-<div class="font-size-box"><p class="font-size-title">Tamaño de letra</p><div class="font-size-choices"><button type="button" class="font-choice" data-font-choice="normal" onclick="setAppFontSize('normal')">Normal</button><button type="button" class="font-choice" data-font-choice="large" onclick="setAppFontSize('large')">Grande</button><button type="button" class="font-choice" data-font-choice="xl" onclick="setAppFontSize('xl')">Sin gafas</button></div></div>
-<div class="chips"><span>4 días</span><span>Fotos</span><span>Vídeo</span><span>Progresión</span><span>Dolor 0–10</span><span>Peso y cintura</span><span>55–75 min</span></div></div>
-<div class="panel"><h2>Entrenamientos</h2><div id="daysGrid" class="days-grid"></div></div>
-<div class="panel"><h2>Copias de seguridad</h2><div class="row"><button id="exportBtn" class="secondary">Exportar datos (.json)</button><input type="file" id="importFile" accept=".json,application/json"></div><p class="muted">Los datos se guardan localmente en este navegador.</p></div>
+  <div class="panel hero-panel">
+    <h2>Tu plan</h2>
+    <p><b>4 días de hipertrofia</b>, progresión registrada, guía visual real, menú semanal y comidas adaptables a lo que tengas en casa.</p>
+    <div class="font-size-box">
+      <p class="font-size-title">Tamaño de letra</p>
+      <div class="font-size-choices">
+        <button type="button" class="font-choice" data-font-choice="normal" onclick="setAppFontSize('normal')">Normal</button>
+        <button type="button" class="font-choice" data-font-choice="large" onclick="setAppFontSize('large')">Grande</button>
+        <button type="button" class="font-choice" data-font-choice="xl" onclick="setAppFontSize('xl')">Sin gafas</button>
+      </div>
+    </div>
+    <div class="chips"><span>4 días</span><span>Fotos reales</span><span>Inicio/fin</span><span>Vídeo</span><span>Despensa</span><span>Lista compra</span></div>
+  </div>
+  <div class="panel"><h2>Entrenamientos</h2><div id="daysGrid" class="days-grid"></div></div>
+  <div class="panel"><h2>Copias de seguridad</h2><div class="stack"><button id="exportBtn" class="secondary">Exportar datos (.json)</button><input type="file" id="importFile" accept=".json,application/json"></div><p class="muted">Entrenos, medidas, despensa y dieta se guardan localmente en este móvil.</p></div>
 </section>
-<section id="rutina" class="tab"><div class="panel row"><div><label><b>Día</b></label><select id="daySelect"></select></div><div id="daySummary" class="summary"></div></div><div id="routineContainer"></div></section>
-<section id="historial" class="tab"><div class="panel row"><div><label><b>Ejercicio</b></label><select id="historyExercise"></select></div><div id="historySummary" class="summary"></div></div><div id="historyList"></div></section>
-<section id="medidas" class="tab"><div class="panel"><h2>Peso y cintura</h2><div class="grid3"><input type="date" id="measureDate"><input type="number" step="0.1" id="measureWeight" placeholder="Peso kg"><input type="number" step="0.1" id="measureWaist" placeholder="Cintura cm"></div><button id="saveMeasureBtn" class="primary">Guardar medida</button><div id="measureSummary" class="summary"></div></div><div id="measureList"></div></section>
+
+<section id="rutina" class="tab">
+  <div class="panel stack">
+    <div><label for="daySelect"><b>Día de entrenamiento</b></label><select id="daySelect"></select></div>
+    <div id="daySummary" class="summary"></div>
+  </div>
+  <div id="routineContainer"></div>
+</section>
+
+<section id="dieta" class="tab">
+  <div class="panel diet-intro">
+    <h2>Dieta flexible</h2>
+    <p>Base de <b>4 comidas</b>. Prioridad inicial: alrededor de <b>150–160 g de proteína al día</b>. Las cantidades se ajustarán con la tendencia de peso, cintura y rendimiento.</p>
+    <div class="diet-subnav">
+      <button class="diet-nav active" data-diet-view="hoy">Hoy</button>
+      <button class="diet-nav" data-diet-view="semana">Semana</button>
+      <button class="diet-nav" data-diet-view="despensa">Despensa</button>
+      <button class="diet-nav" data-diet-view="compra">Compra</button>
+    </div>
+  </div>
+  <div id="dietView"></div>
+</section>
+
+<section id="progreso" class="tab">
+  <div class="panel"><h2>Peso y cintura</h2><div class="grid3"><input type="date" id="measureDate"><input type="number" step="0.1" id="measureWeight" placeholder="Peso kg"><input type="number" step="0.1" id="measureWaist" placeholder="Cintura cm"></div><button id="saveMeasureBtn" class="primary full">Guardar medida</button><div id="measureSummary" class="summary"></div></div>
+  <div id="measureList"></div>
+  <div class="panel"><h2>Historial de entrenamiento</h2><label for="historyExercise"><b>Ejercicio</b></label><select id="historyExercise"></select><div id="historySummary" class="summary"></div></div>
+  <div id="historyList"></div>
+</section>
 </main>
-<script src="app.js?v=13"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>
