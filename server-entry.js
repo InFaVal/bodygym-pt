@@ -13,6 +13,14 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function isPantryRequest(payload) {
+  const text = (payload?.contents || [])
+    .flatMap(c => c?.parts || [])
+    .map(p => p?.text || "")
+    .join("\n");
+  return /Analiza esta foto de nevera|CATÁLOGO:/i.test(text);
+}
+
 function cleanGenerationBody(body) {
   if (typeof body !== "string") return body;
   try {
@@ -22,6 +30,27 @@ function cleanGenerationBody(body) {
       delete payload.generationConfig.temperature;
       delete payload.generationConfig.topP;
       delete payload.generationConfig.topK;
+    }
+
+    // Pantry vision only needs inventory. Recipe generation is a separate API call.
+    // Keeping the vision response short substantially reduces malformed/truncated JSON.
+    if (isPantryRequest(payload)) {
+      const schema = payload?.generationConfig?.responseSchema;
+      if (schema?.properties?.meal_ideas) {
+        delete schema.properties.meal_ideas;
+        if (Array.isArray(schema.required)) schema.required = schema.required.filter(x => x !== "meal_ideas");
+      }
+      if (payload?.generationConfig?.maxOutputTokens) {
+        payload.generationConfig.maxOutputTokens = Math.min(Number(payload.generationConfig.maxOutputTokens) || 1200, 1200);
+      }
+      for (const content of payload.contents || []) {
+        for (const part of content?.parts || []) {
+          if (typeof part?.text !== "string") continue;
+          part.text = part.text
+            .replace(/Devuelve un objeto con foods, extra_foods, meal_ideas y note\./gi, "Devuelve un objeto con foods, extra_foods y note.")
+            .replace(/Propón hasta 3 ideas sencillas y altas en proteína usando prioritariamente lo visible\.\s*/gi, "");
+        }
+      }
     }
     return JSON.stringify(payload);
   } catch (_) {
@@ -45,14 +74,19 @@ function asJsonObjectText(candidate) {
   if (withoutFence !== source) variants.push(withoutFence);
 
   const accept = text => {
-    try {
-      let value = JSON.parse(text);
-      // Occasionally a model returns a JSON string containing the actual JSON.
-      if (typeof value === "string") {
-        try { value = JSON.parse(value); } catch (_) { return null; }
-      }
-      if (value && typeof value === "object") return JSON.stringify(value);
-    } catch (_) {}
+    const attempts = [String(text || "").trim()];
+    const noTrailingCommas = attempts[0].replace(/,\s*([}\]])/g, "$1");
+    if (noTrailingCommas !== attempts[0]) attempts.push(noTrailingCommas);
+    for (const attempt of attempts) {
+      try {
+        let value = JSON.parse(attempt);
+        // Occasionally a model returns a JSON string containing the actual JSON.
+        if (typeof value === "string") {
+          try { value = JSON.parse(value); } catch (_) { continue; }
+        }
+        if (value && typeof value === "object") return JSON.stringify(value);
+      } catch (_) {}
+    }
     return null;
   };
 
@@ -90,6 +124,16 @@ function asJsonObjectText(candidate) {
             break;
           }
         }
+      }
+
+      // Last-resort repair for a response cut off near the end by the model.
+      if (stack.length) {
+        let repaired = variant.slice(start).trim();
+        if (inString) repaired += '"';
+        repaired = repaired.replace(/,\s*$/, "");
+        for (let j = stack.length - 1; j >= 0; j -= 1) repaired += stack[j] === "{" ? "}" : "]";
+        const parsed = accept(repaired);
+        if (parsed) return parsed;
       }
     }
   }
