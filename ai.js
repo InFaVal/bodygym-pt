@@ -11,7 +11,7 @@
   function setBaseUrl(v){try{localStorage.setItem(URL_KEY,v)}catch(e){};ensureAll()}
   window.configureBodyGymAI=function(){
     const current=baseUrl();
-    const v=prompt("Pega la URL pública del servidor IA de Railway (por ejemplo https://xxxxx.up.railway.app)",current);
+    const v=prompt("Pega la URL pública del servidor IA (por ejemplo https://bodygym-pt-ai.onrender.com)",current);
     if(v===null)return false;
     const clean=v.trim().replace(/\/$/,"");
     if(clean&&!/^https:\/\//i.test(clean)){alert("La URL debe empezar por https://");return false}
@@ -59,7 +59,8 @@
     });
   }
 
-  window.pickAiPantryPhoto=function(){const e=document.getElementById("aiPantryPhoto");if(e)e.click()};
+  window.pickAiPantryCamera=function(){const e=document.getElementById("aiPantryCamera");if(e)e.click()};
+  window.pickAiPantryGallery=function(){const e=document.getElementById("aiPantryGallery");if(e)e.click()};
   window.analyzeAiPantryPhoto=async function(input){
     const file=input.files&&input.files[0];if(!file)return;
     const status=document.getElementById("aiPantryStatus");if(status)status.textContent="Analizando foto…";
@@ -77,7 +78,7 @@
   function ensurePantry(){
     const host=document.querySelector("#dietView .ai-card");if(!host||host.dataset.liveAi==="1")return;
     host.dataset.liveAi="1";
-    host.innerHTML=`<h3>📷 Despensa con IA</h3><p>Haz una foto de la nevera, la compra o varios alimentos. La IA intentará reconocerlos, marcará los que conozca en tu despensa y propondrá ideas de comida.</p>${configuredHtml()}<button class="primary full ai-main" onclick="pickAiPantryPhoto()">📷 Foto o galería · Analizar con IA</button><input id="aiPantryPhoto" hidden type="file" accept="image/*" onchange="analyzeAiPantryPhoto(this)"><div id="aiPantryStatus" class="muted">La foto se envía al servidor IA para analizarla; no se guarda en este repositorio.</div>${pantryResultHtml(readLast(LAST_PANTRY_KEY))}`;
+    host.innerHTML=`<h3>📷 Despensa con IA</h3><p>Haz una foto ahora o elige una que ya tengas. La IA intentará reconocer los alimentos, marcará los que conozca en tu despensa y propondrá ideas de comida.</p>${configuredHtml()}<div class="ai-photo-actions"><button class="primary ai-main" onclick="pickAiPantryCamera()">📷 Hacer foto</button><button class="secondary ai-main" onclick="pickAiPantryGallery()">🖼️ Elegir de galería</button></div><input id="aiPantryCamera" hidden type="file" accept="image/*" capture="environment" onchange="analyzeAiPantryPhoto(this)"><input id="aiPantryGallery" hidden type="file" accept="image/*" onchange="analyzeAiPantryPhoto(this)"><div id="aiPantryStatus" class="muted">La imagen se envía al servidor IA para analizarla; no se guarda en este repositorio.</div>${pantryResultHtml(readLast(LAST_PANTRY_KEY))}`;
   }
 
   function coachResultHtml(d){
@@ -104,7 +105,7 @@
 
   function ensureAll(){ensurePantry();ensureCoach()}
   const style=document.createElement("style");style.textContent=`
-    .ai-server{margin:12px 0;padding:10px 12px;border-radius:12px;font-weight:750}.ai-server.ok{background:#edf9f2;color:#146c43}.ai-server.pending{background:#fff7e6;color:#7a5200}.ai-link{border:0;background:transparent;color:inherit;text-decoration:underline;min-height:auto!important;padding:2px 5px!important;font-size:.9em!important}.ai-main{margin:12px 0}.ai-result{margin-top:14px;border:2px solid #dce4ec;border-radius:16px;padding:16px;background:#fff}.ai-result h4{margin:12px 0 6px}.ai-confidence{font-size:.8em;color:#667085}.ai-meal{margin:10px 0;padding:12px;border-radius:12px;background:#f4f7fa}.ai-meal small{display:block;margin-top:5px;color:#5c6670}.ai-status{display:inline-block;padding:8px 12px;border-radius:999px;font-weight:900;background:#17365D;color:#fff}.ai-result.coach.bien{border-color:#75b798}.ai-result.coach.vigilar{border-color:#f0c36b}.ai-result.coach.revisar{border-color:#e79aa2}html[data-font-size="xl"] .ai-result,html[data-font-size="xl"] .ai-server{font-size:.9em}
+    .ai-server{margin:12px 0;padding:10px 12px;border-radius:12px;font-weight:750}.ai-server.ok{background:#edf9f2;color:#146c43}.ai-server.pending{background:#fff7e6;color:#7a5200}.ai-link{border:0;background:transparent;color:inherit;text-decoration:underline;min-height:auto!important;padding:2px 5px!important;font-size:.9em!important}.ai-main{margin:12px 0}.ai-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ai-photo-actions button{width:100%}.ai-result{margin-top:14px;border:2px solid #dce4ec;border-radius:16px;padding:16px;background:#fff}.ai-result h4{margin:12px 0 6px}.ai-confidence{font-size:.8em;color:#667085}.ai-meal{margin:10px 0;padding:12px;border-radius:12px;background:#f4f7fa}.ai-meal small{display:block;margin-top:5px;color:#5c6670}.ai-status{display:inline-block;padding:8px 12px;border-radius:999px;font-weight:900;background:#17365D;color:#fff}.ai-result.coach.bien{border-color:#75b798}.ai-result.coach.vigilar{border-color:#f0c36b}.ai-result.coach.revisar{border-color:#e79aa2}html[data-font-size="xl"] .ai-result,html[data-font-size="xl"] .ai-server{font-size:.9em}@media(max-width:520px){.ai-photo-actions{grid-template-columns:1fr}}
   `;document.head.appendChild(style);
 
   document.addEventListener("DOMContentLoaded",ensureAll);
