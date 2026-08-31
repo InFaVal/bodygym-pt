@@ -2,113 +2,61 @@
   const URL_KEY="bodygym_ai_url";
   const LAST_PANTRY_KEY="bodygym_ai_last_pantry";
   const LAST_COACH_KEY="bodygym_ai_last_coach";
-
-  function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
-  function baseUrl(){
-    let saved="";try{saved=localStorage.getItem(URL_KEY)||""}catch(e){}
-    return String(saved||window.BODYGYM_AI_URL||"").trim().replace(/\/$/,"");
-  }
-  function setBaseUrl(v){try{localStorage.setItem(URL_KEY,v)}catch(e){};ensureAll()}
-  window.configureBodyGymAI=function(){
-    const current=baseUrl();
-    const v=prompt("Pega la URL pública del servidor IA (por ejemplo https://bodygym-pt-ai.onrender.com)",current);
-    if(v===null)return false;
-    const clean=v.trim().replace(/\/$/,"");
-    if(clean&&!/^https:\/\//i.test(clean)){alert("La URL debe empezar por https://");return false}
-    setBaseUrl(clean);return Boolean(clean);
+  const FOOD_NAMES={pollo:"Pechuga de pollo",lomo:"Lomo fresco",sardinas:"Sardinas en lata",atun:"Atún al natural",salmon:"Salmón ahumado",garbanzos:"Garbanzos",avena:"Avena",leche:"Leche semidesnatada",whey:"Proteína whey",yogur:"Yogur griego 0 %",cottage:"Cottage",canela:"Canela",patata:"Patata",pasta:"Pasta",arandanos:"Arándanos",pina:"Piña",kiwi:"Kiwi",ensalada:"Lechuga / rúcula",tomate:"Tomate / cebolla",aguacate:"Aguacate",aove:"AOVE"};
+  const NUTR={
+    pollo:[165,31,0,3.6],lomo:[190,29,0,8],sardinas:[220,25,0,13],atun:[116,26,0,1],salmon:[180,22,0,10],garbanzos:[145,7.5,20,2.5],
+    avena:[370,13,60,7],leche:[47,3.2,4.8,1.6],whey:[390,78,8,6],yogur:[59,10,3.6,.4],cottage:[98,12,3,4],canela:[0,0,0,0],
+    patata:[87,2,20,.1],pasta:[350,12,72,1.5],arandanos:[57,.7,14,.3],pina:[50,.5,13,.1],kiwi:[61,1.1,15,.5],ensalada:[20,1.5,3,.3],tomate:[20,1,4,.2],aguacate:[160,2,9,15],aove:[900,0,0,100]
   };
 
-  async function api(path,payload){
-    let base=baseUrl();
-    if(!base){if(!window.configureBodyGymAI())throw new Error("Servidor IA sin configurar");base=baseUrl()}
-    const r=await fetch(base+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    let data={};try{data=await r.json()}catch(e){}
-    if(!r.ok)throw new Error(data.error||`Error IA ${r.status}`);
-    return data;
-  }
+  function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+  function baseUrl(){let saved="";try{saved=localStorage.getItem(URL_KEY)||""}catch(e){}return String(saved||window.BODYGYM_AI_URL||"").trim().replace(/\/$/,"")}
+  function setBaseUrl(v){try{localStorage.setItem(URL_KEY,v)}catch(e){};ensureAll()}
+  window.configureBodyGymAI=function(){const current=baseUrl();const v=prompt("Pega la URL pública del servidor IA (por ejemplo https://bodygym-pt-ai.onrender.com)",current);if(v===null)return false;const clean=v.trim().replace(/\/$/,"");if(clean&&!/^https:\/\//i.test(clean)){alert("La URL debe empezar por https://");return false}setBaseUrl(clean);return Boolean(clean)};
 
-  function appState(){
-    try{if(typeof state!=="undefined")return state}catch(e){}
-    try{return JSON.parse(localStorage.getItem("bodygym_pt_data_v2")||"{}")}catch(e){return{}}
-  }
-  function configuredHtml(){
-    const u=baseUrl();
-    return u?`<div class="ai-server ok">● IA conectada <button class="ai-link" onclick="configureBodyGymAI()">Cambiar</button></div>`:`<div class="ai-server pending">IA pendiente de conectar · <button class="ai-link" onclick="configureBodyGymAI()">Configurar</button></div>`;
-  }
+  async function api(path,payload){let base=baseUrl();if(!base){if(!window.configureBodyGymAI())throw new Error("Servidor IA sin configurar");base=baseUrl()}const r=await fetch(base+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});let data={};try{data=await r.json()}catch(e){}if(!r.ok)throw new Error(data.error||`Error IA ${r.status}`);return data}
 
+  function appState(){try{if(typeof state!=="undefined")return state}catch(e){}try{return JSON.parse(localStorage.getItem("bodygym_pt_data_v2")||"{}")}catch(e){return{}}}
+  function ensureStateExtras(){const s=appState();if(!s.pantry)s.pantry={};if(!s.pantryCustom)s.pantryCustom={};if(!s.aiMealOverrides)s.aiMealOverrides={};return s}
+  function persist(){try{if(typeof save==="function")save();else localStorage.setItem("bodygym_pt_data_v2",JSON.stringify(appState()))}catch(e){}}
+  function configuredHtml(){const u=baseUrl();return u?`<div class="ai-server ok">● IA conectada <button class="ai-link" onclick="configureBodyGymAI()">Cambiar</button></div>`:`<div class="ai-server pending">IA pendiente de conectar · <button class="ai-link" onclick="configureBodyGymAI()">Configurar</button></div>`}
   function readLast(key){try{return JSON.parse(localStorage.getItem(key)||"null")}catch(e){return null}}
   function writeLast(key,data){try{localStorage.setItem(key,JSON.stringify(data))}catch(e){}}
 
-  function pantryResultHtml(data){
-    if(!data)return"";
-    const foods=(data.foods||[]).map(x=>`<li><b>${esc(x.name)}</b>${x.quantity?` · ${esc(x.quantity)}`:""} <span class="ai-confidence">${Math.round((x.confidence||0)*100)}%</span></li>`).join("");
-    const unknown=(data.unknown_items||[]).map(x=>`<li>${esc(x)}</li>`).join("");
-    const ideas=(data.meal_ideas||[]).map(x=>`<div class="ai-meal"><b>${esc(x.title)}</b><div>${(x.ingredients||[]).map(esc).join(" · ")}</div><small>${esc(x.reason)}</small></div>`).join("");
-    return `<div class="ai-result"><h4>Detectado</h4>${foods?`<ul>${foods}</ul>`:"<p>No he identificado alimentos del catálogo con suficiente seguridad.</p>"}${unknown?`<details><summary>Otros objetos/alimentos</summary><ul>${unknown}</ul></details>`:""}${ideas?`<h4>Ideas con lo que veo</h4>${ideas}`:""}${data.note?`<p class="muted">${esc(data.note)}</p>`:""}</div>`;
-  }
+  function qtyFactor(food,qty){const q=String(qty||"").toLowerCase().replace(",",".");let m=q.match(/([0-9.]+)\s*g\b/);if(m)return Number(m[1])/100;m=q.match(/([0-9.]+)\s*ml\b/);if(m)return Number(m[1])/100;m=q.match(/([0-9.]+)\s*latas?/);if(m)return Number(m[1])*(food==="sardinas"?65:80)/100;m=q.match(/([0-9.]+)\s*(ud|unidad)/);if(m)return Number(m[1])*(food==="kiwi"?100:100)/100;if(food==="ensalada")return 1.5;if(food==="tomate")return 1.5;return 0}
+  function estimateMealMacros(m){if(m&&m.macros&&Number(m.macros.kcal))return{kcal:Math.round(Number(m.macros.kcal)),protein_g:Math.round(Number(m.macros.protein_g)||0),carbs_g:Math.round(Number(m.macros.carbs_g)||0),fat_g:Math.round(Number(m.macros.fat_g)||0)};const out={kcal:0,protein_g:0,carbs_g:0,fat_g:0};(m?.items||[]).forEach(x=>{const n=NUTR[x.food],f=qtyFactor(x.food,x.qty);if(!n||!f)return;out.kcal+=n[0]*f;out.protein_g+=n[1]*f;out.carbs_g+=n[2]*f;out.fat_g+=n[3]*f});Object.keys(out).forEach(k=>out[k]=Math.round(out[k]));return out}
+  function macroHtml(m){const x=estimateMealMacros(m);if(!x.kcal)return"";return`<div class="ai-macro-strip">≈ <b>${x.kcal} kcal</b> · ${x.protein_g} g proteína · ${x.carbs_g} g HC · ${x.fat_g} g grasa${m?.ai?" · ✨ IA":""}</div>`}
 
-  async function resize(file){
-    return new Promise((resolve,reject)=>{
-      const fr=new FileReader();fr.onerror=reject;fr.onload=()=>{
-        const im=new Image();im.onerror=reject;im.onload=()=>{
-          const max=1500,scale=Math.min(1,max/Math.max(im.width,im.height));
-          const cv=document.createElement("canvas");cv.width=Math.round(im.width*scale);cv.height=Math.round(im.height*scale);
-          cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);resolve(cv.toDataURL("image/jpeg",.78));
-        };im.src=fr.result;
-      };fr.readAsDataURL(file);
-    });
-  }
+  const originalGetMeal=typeof getMeal==="function"?getMeal:null;
+  if(originalGetMeal){try{getMeal=function(dayIdx,id){const s=ensureStateExtras(),ai=s.aiMealOverrides[dayIdx+"|"+id];return ai||originalGetMeal(dayIdx,id)}}catch(e){}}
+  const originalMealCard=typeof mealCard==="function"?mealCard:null;
+  if(originalMealCard){try{mealCard=function(m,dayIdx,date){let html=originalMealCard(m,dayIdx,date);html=html.replace('<div class="meal-actions">',`${macroHtml(m)}${m?.aiNote?`<div class="ai-meal-note">${esc(m.aiNote)}</div>`:""}<div class="meal-actions">`);html=html.replace("Cambiar con lo que tengo","✨ Variar manteniendo macros");return html}}catch(e){}}
 
+  function pantryResultHtml(data){if(!data)return"";const foods=(data.foods||[]).map(x=>`<li><b>${esc(x.name)}</b>${x.quantity?` · ${esc(x.quantity)}`:""} <span class="ai-confidence">${Math.round((x.confidence||0)*100)}%</span></li>`).join("");const extra=(data.extra_foods||[]).map(x=>`<li><b>${esc(x.name)}</b>${x.quantity?` · ${esc(x.quantity)}`:""} <span class="ai-confidence">${Math.round((x.confidence||0)*100)}%</span></li>`).join("");const ideas=(data.meal_ideas||[]).map(x=>`<div class="ai-meal"><b>${esc(x.title)}</b><div>${(x.ingredients||[]).map(esc).join(" · ")}</div><small>${esc(x.reason)}</small></div>`).join("");return `<div class="ai-result">${data.sync_note?`<div class="ai-sync-note">${esc(data.sync_note)}</div>`:""}<h4>Detectado en la imagen</h4>${foods?`<ul>${foods}</ul>`:""}${extra?`<h4>Otros alimentos añadidos</h4><ul>${extra}</ul>`:""}${!foods&&!extra?"<p>No he identificado alimentos con suficiente seguridad.</p>":""}${ideas?`<h4>Ideas con lo que veo</h4>${ideas}`:""}${data.note?`<p class="muted">${esc(data.note)}</p>`:""}</div>`}
+
+  function customPantryHtml(){const s=ensureStateExtras(),names=Object.entries(s.pantryCustom).filter(([,v])=>v).map(([n])=>n);if(!names.length)return"";return `<div class="ai-custom-pantry"><h4>Detectados por IA</h4><p class="muted">También se tendrán en cuenta al variar tus comidas.</p><div class="ai-custom-grid">${names.map(n=>`<span>${esc(n)} <button onclick="removeAiPantryItem('${encodeURIComponent(n)}')">×</button></span>`).join("")}</div></div>`}
+  window.removeAiPantryItem=function(encoded){const n=decodeURIComponent(encoded),s=ensureStateExtras();delete s.pantryCustom[n];persist();try{if(typeof renderDiet==="function")renderDiet()}catch(e){}setTimeout(ensureAll,20)};
+
+  async function resize(file){return new Promise((resolve,reject)=>{const fr=new FileReader();fr.onerror=reject;fr.onload=()=>{const im=new Image();im.onerror=reject;im.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(im.width,im.height));const cv=document.createElement("canvas");cv.width=Math.round(im.width*scale);cv.height=Math.round(im.height*scale);cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);resolve(cv.toDataURL("image/jpeg",.78))};im.src=fr.result};fr.readAsDataURL(file)})}
   window.pickAiPantryCamera=function(){const e=document.getElementById("aiPantryCamera");if(e)e.click()};
   window.pickAiPantryGallery=function(){const e=document.getElementById("aiPantryGallery");if(e)e.click()};
-  window.analyzeAiPantryPhoto=async function(input){
-    const file=input.files&&input.files[0];if(!file)return;
-    const status=document.getElementById("aiPantryStatus");if(status)status.textContent="Analizando foto…";
-    try{
-      const image=await resize(file),s=appState(),current=Object.entries(s.pantry||{}).filter(([,v])=>v).map(([k])=>k);
-      const data=await api("/api/analyze-pantry",{image,currentPantry:current});
-      (data.foods||[]).forEach(x=>{if((x.confidence||0)>=.5&&s.pantry)s.pantry[x.id]=true});
-      try{if(typeof save==="function")save();else localStorage.setItem("bodygym_pt_data_v2",JSON.stringify(s))}catch(e){}
-      writeLast(LAST_PANTRY_KEY,data);
-      try{if(typeof renderDiet==="function")renderDiet()}catch(e){}
-      setTimeout(ensureAll,30);
-    }catch(e){if(status)status.textContent=e.message||"No se pudo analizar la foto.";else alert(e.message)}finally{input.value=""}
-  };
+  window.analyzeAiPantryPhoto=async function(input){const file=input.files&&input.files[0];if(!file)return;const status=document.getElementById("aiPantryStatus");if(status)status.textContent="Analizando foto y actualizando despensa…";try{const image=await resize(file),s=ensureStateExtras(),current=Object.entries(s.pantry||{}).filter(([,v])=>v).map(([k])=>k).concat(Object.entries(s.pantryCustom||{}).filter(([,v])=>v).map(([k])=>k));const data=await api("/api/analyze-pantry",{image,currentPantry:current});let added=0;(data.foods||[]).forEach(x=>{if((x.confidence||0)>=.5){if(!s.pantry[x.id])added++;s.pantry[x.id]=true}});(data.extra_foods||[]).forEach(x=>{if((x.confidence||0)>=.55&&x.name){if(!s.pantryCustom[x.name])added++;s.pantryCustom[x.name]=true}});data.sync_note=added?`Despensa actualizada: ${added} alimento${added===1?"":"s"} añadido${added===1?"":"s"}. No borro alimentos que no aparezcan en una sola foto.`:"La despensa ya contenía lo detectado. No borro alimentos que no aparezcan en una sola foto.";persist();writeLast(LAST_PANTRY_KEY,data);try{if(typeof renderDiet==="function")renderDiet()}catch(e){}setTimeout(ensureAll,30)}catch(e){if(status)status.textContent=e.message||"No se pudo analizar la foto.";else alert(e.message)}finally{input.value=""}};
 
-  function ensurePantry(){
-    const host=document.querySelector("#dietView .ai-card");if(!host||host.dataset.liveAi==="1")return;
-    host.dataset.liveAi="1";
-    host.innerHTML=`<h3>📷 Despensa con IA</h3><p>Haz una foto ahora o elige una que ya tengas. La IA intentará reconocer los alimentos, marcará los que conozca en tu despensa y propondrá ideas de comida.</p>${configuredHtml()}<div class="ai-photo-actions"><button class="primary ai-main" onclick="pickAiPantryCamera()">📷 Hacer foto</button><button class="secondary ai-main" onclick="pickAiPantryGallery()">🖼️ Elegir de galería</button></div><input id="aiPantryCamera" hidden type="file" accept="image/*" capture="environment" onchange="analyzeAiPantryPhoto(this)"><input id="aiPantryGallery" hidden type="file" accept="image/*" onchange="analyzeAiPantryPhoto(this)"><div id="aiPantryStatus" class="muted">La imagen se envía al servidor IA para analizarla; no se guarda en este repositorio.</div>${pantryResultHtml(readLast(LAST_PANTRY_KEY))}`;
-  }
+  const localSwap=window.swapMeal;
+  window.swapMeal=async function(dayIdx,id){if(!baseUrl()||!originalGetMeal){if(typeof localSwap==="function")return localSwap(dayIdx,id);return}const btn=document.activeElement,oldText=btn&&btn.tagName==="BUTTON"?btn.textContent:"";if(btn&&btn.tagName==="BUTTON"){btn.disabled=true;btn.textContent="✨ Preparando alternativa…"}try{const s=ensureStateExtras(),current=typeof getMeal==="function"?getMeal(dayIdx,id):originalGetMeal(dayIdx,id),target=estimateMealMacros(current),pantry=Object.entries(s.pantry||{}).filter(([,v])=>v).map(([foodId])=>({id:foodId,name:FOOD_NAMES[foodId]||foodId})),customFoods=Object.entries(s.pantryCustom||{}).filter(([,v])=>v).map(([name])=>name);if(!pantry.length&&!customFoods.length)throw new Error("Marca primero lo que tienes en Despensa.");const data=await api("/api/suggest-meal",{target,currentMeal:{title:current.title,items:(current.items||[]).map(x=>({name:x.name,quantity:x.qty})),macros:target},pantry,customFoods});if(!data.meal||!Array.isArray(data.meal.items))throw new Error("La IA no devolvió una comida válida.");const mm=data.meal.macros||{},generated={id,title:current.title||data.meal.title||"Comida",items:data.meal.items.map(x=>({food:FOOD_NAMES[x.food_id]?x.food_id:"ai_custom",name:x.name,qty:x.quantity})),protein:`≈${Math.round(Number(mm.protein_g)||target.protein_g)} g`,macros:{kcal:Math.round(Number(mm.kcal)||target.kcal),protein_g:Math.round(Number(mm.protein_g)||target.protein_g),carbs_g:Math.round(Number(mm.carbs_g)||target.carbs_g),fat_g:Math.round(Number(mm.fat_g)||target.fat_g)},ai:true,aiNote:data.note||"Alternativa ajustada a los macros de la comida original."};s.aiMealOverrides[dayIdx+"|"+id]=generated;persist();try{if(typeof renderDiet==="function")renderDiet()}catch(e){}setTimeout(ensureAll,20)}catch(e){alert((e.message||"No se pudo variar la comida con IA.")+"\n\nUsaré la alternativa local disponible.");const s=ensureStateExtras();delete s.aiMealOverrides[dayIdx+"|"+id];persist();if(typeof localSwap==="function")localSwap(dayIdx,id)}finally{if(btn&&btn.tagName==="BUTTON"&&document.body.contains(btn)){btn.disabled=false;btn.textContent=oldText}}};
 
-  function coachResultHtml(d){
-    if(!d)return"";
-    const list=(title,a)=>a&&a.length?`<h4>${title}</h4><ul>${a.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:"";
-    return `<div class="ai-result coach ${esc(d.status)}"><div class="ai-status">${d.status==="bien"?"✅ BIEN":d.status==="vigilar"?"👀 VIGILAR":"⚠️ REVISAR"}</div><p><b>${esc(d.summary)}</b></p>${list("Entrenamiento",d.training)}${list("Nutrición / tendencia",d.nutrition)}${list("A vigilar",d.watchouts)}${d.next_review?`<p><b>Próxima revisión:</b> ${esc(d.next_review)}</p>`:""}</div>`;
-  }
+  function ensurePantry(){const host=document.querySelector("#dietView .ai-card");if(!host||host.dataset.liveAi==="1")return;host.dataset.liveAi="1";host.innerHTML=`<h3>📷 Despensa con IA</h3><p>Haz una foto o elige una de la galería. La IA añadirá los alimentos reconocidos a “Qué tengo en casa”. <b>No elimina automáticamente</b> lo que no salga en una foto.</p>${configuredHtml()}${customPantryHtml()}<div class="ai-photo-actions"><button class="primary ai-main" onclick="pickAiPantryCamera()">📷 Hacer foto</button><button class="secondary ai-main" onclick="pickAiPantryGallery()">🖼️ Elegir de galería</button></div><input id="aiPantryCamera" hidden type="file" accept="image/*" capture="environment" onchange="analyzeAiPantryPhoto(this)"><input id="aiPantryGallery" hidden type="file" accept="image/*" onchange="analyzeAiPantryPhoto(this)"><div id="aiPantryStatus" class="muted">Después, “✨ Variar manteniendo macros” utilizará esta despensa para proponerte otra comida con kcal y macros similares.</div>${pantryResultHtml(readLast(LAST_PANTRY_KEY))}`}
 
-  window.runAiCoachReview=async function(){
-    const status=document.getElementById("aiCoachStatus");if(status)status.textContent="Revisando tus datos…";
-    try{
-      const s=appState(),logs=[...(s.logs||[])].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(-60),measures=[...(s.measures||[])].sort((a,b)=>a.date.localeCompare(b.date)).slice(-20);
-      const data=await api("/api/coach-review",{logs,measures});writeLast(LAST_COACH_KEY,data);
-      const out=document.getElementById("aiCoachResult");if(out)out.innerHTML=coachResultHtml(data);if(status)status.textContent="Revisión terminada.";
-    }catch(e){if(status)status.textContent=e.message||"No se pudo hacer la revisión."}
-  };
+  function coachResultHtml(d){if(!d)return"";const list=(title,a)=>a&&a.length?`<h4>${title}</h4><ul>${a.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:"";return `<div class="ai-result coach ${esc(d.status)}"><div class="ai-status">${d.status==="bien"?"✅ BIEN":d.status==="vigilar"?"👀 VIGILAR":"⚠️ REVISAR"}</div><p><b>${esc(d.summary)}</b></p>${list("Entrenamiento",d.training)}${list("Nutrición / tendencia",d.nutrition)}${list("A vigilar",d.watchouts)}${d.next_review?`<p><b>Próxima revisión:</b> ${esc(d.next_review)}</p>`:""}</div>`}
+  window.runAiCoachReview=async function(){const status=document.getElementById("aiCoachStatus");if(status)status.textContent="Revisando tus datos…";try{const s=appState(),logs=[...(s.logs||[])].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(-60),measures=[...(s.measures||[])].sort((a,b)=>a.date.localeCompare(b.date)).slice(-20);const data=await api("/api/coach-review",{logs,measures});writeLast(LAST_COACH_KEY,data);const out=document.getElementById("aiCoachResult");if(out)out.innerHTML=coachResultHtml(data);if(status)status.textContent="Revisión terminada."}catch(e){if(status)status.textContent=e.message||"No se pudo hacer la revisión."}};
+  function ensureCoach(){const section=document.getElementById("progreso");if(!section||document.getElementById("aiCoachPanel"))return;const panel=document.createElement("div");panel.id="aiCoachPanel";panel.className="panel ai-coach-panel";panel.innerHTML=`<h2>Revisión IA</h2><p>Analiza tus últimas sesiones, RIR/dolor y la tendencia de peso/cintura. <b>No cambia nada por sí sola.</b></p>${configuredHtml()}<button class="primary full ai-main" onclick="runAiCoachReview()">Analizar mi progreso con IA</button><div id="aiCoachStatus" class="muted">Úsala cuando ya tengas varias sesiones registradas.</div><div id="aiCoachResult">${coachResultHtml(readLast(LAST_COACH_KEY))}</div>`;const before=document.getElementById("measureList");section.insertBefore(panel,before||section.firstChild)}
 
-  function ensureCoach(){
-    const section=document.getElementById("progreso");if(!section||document.getElementById("aiCoachPanel"))return;
-    const panel=document.createElement("div");panel.id="aiCoachPanel";panel.className="panel ai-coach-panel";
-    panel.innerHTML=`<h2>Revisión IA</h2><p>Analiza tus últimas sesiones, RIR/dolor y la tendencia de peso/cintura. <b>No cambia nada por sí sola.</b></p>${configuredHtml()}<button class="primary full ai-main" onclick="runAiCoachReview()">Analizar mi progreso con IA</button><div id="aiCoachStatus" class="muted">Úsala cuando ya tengas varias sesiones registradas.</div><div id="aiCoachResult">${coachResultHtml(readLast(LAST_COACH_KEY))}</div>`;
-    const before=document.getElementById("measureList");section.insertBefore(panel,before||section.firstChild);
-  }
-
-  function ensureAll(){ensurePantry();ensureCoach()}
+  function ensureAll(){ensureStateExtras();ensurePantry();ensureCoach()}
   const style=document.createElement("style");style.textContent=`
-    .ai-server{margin:12px 0;padding:10px 12px;border-radius:12px;font-weight:750}.ai-server.ok{background:#edf9f2;color:#146c43}.ai-server.pending{background:#fff7e6;color:#7a5200}.ai-link{border:0;background:transparent;color:inherit;text-decoration:underline;min-height:auto!important;padding:2px 5px!important;font-size:.9em!important}.ai-main{margin:12px 0}.ai-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ai-photo-actions button{width:100%}.ai-result{margin-top:14px;border:2px solid #dce4ec;border-radius:16px;padding:16px;background:#fff}.ai-result h4{margin:12px 0 6px}.ai-confidence{font-size:.8em;color:#667085}.ai-meal{margin:10px 0;padding:12px;border-radius:12px;background:#f4f7fa}.ai-meal small{display:block;margin-top:5px;color:#5c6670}.ai-status{display:inline-block;padding:8px 12px;border-radius:999px;font-weight:900;background:#17365D;color:#fff}.ai-result.coach.bien{border-color:#75b798}.ai-result.coach.vigilar{border-color:#f0c36b}.ai-result.coach.revisar{border-color:#e79aa2}html[data-font-size="xl"] .ai-result,html[data-font-size="xl"] .ai-server{font-size:.9em}@media(max-width:520px){.ai-photo-actions{grid-template-columns:1fr}}
+    .ai-server{margin:12px 0;padding:10px 12px;border-radius:12px;font-weight:750}.ai-server.ok{background:#edf9f2;color:#146c43}.ai-server.pending{background:#fff7e6;color:#7a5200}.ai-link{border:0;background:transparent;color:inherit;text-decoration:underline;min-height:auto!important;padding:2px 5px!important;font-size:.9em!important}.ai-main{margin:12px 0}.ai-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ai-photo-actions button{width:100%}.ai-result{margin-top:14px;border:2px solid #dce4ec;border-radius:16px;padding:16px;background:#fff}.ai-result h4{margin:12px 0 6px}.ai-confidence{font-size:.8em;color:#667085}.ai-meal{margin:10px 0;padding:12px;border-radius:12px;background:#f4f7fa}.ai-meal small{display:block;margin-top:5px;color:#5c6670}.ai-status{display:inline-block;padding:8px 12px;border-radius:999px;font-weight:900;background:#17365D;color:#fff}.ai-result.coach.bien{border-color:#75b798}.ai-result.coach.vigilar{border-color:#f0c36b}.ai-result.coach.revisar{border-color:#e79aa2}.ai-macro-strip{margin:12px 0;padding:10px 12px;border-radius:12px;background:#edf4fb;color:#17365D;font-weight:650}.ai-meal-note{margin:8px 0 12px;padding:10px 12px;border-left:4px solid #17365D;background:#f7f9fb}.ai-sync-note{padding:10px 12px;border-radius:10px;background:#edf9f2;color:#146c43;font-weight:700}.ai-custom-pantry{margin:14px 0}.ai-custom-grid{display:flex;flex-wrap:wrap;gap:8px}.ai-custom-grid span{display:inline-flex;align-items:center;gap:7px;padding:8px 10px;border-radius:999px;background:#eef3f8;font-weight:700}.ai-custom-grid button{min-height:auto!important;padding:0 4px!important;border:0;background:transparent;font-size:1.2em!important}.ai-result, .ai-server{font-size:.95em}html[data-font-size="xl"] .ai-result,html[data-font-size="xl"] .ai-server{font-size:.9em}@media(max-width:520px){.ai-photo-actions{grid-template-columns:1fr}}
   `;document.head.appendChild(style);
 
-  document.addEventListener("DOMContentLoaded",ensureAll);
+  document.addEventListener("DOMContentLoaded",()=>{ensureAll();setTimeout(()=>{try{if(typeof renderDiet==="function")renderDiet()}catch(e){}},50)});
   const obs=new MutationObserver(()=>ensureAll());
-  setTimeout(()=>{const d=document.getElementById("dietView");if(d)obs.observe(d,{childList:true,subtree:true});ensureAll()},500);
+  setTimeout(()=>{const d=document.getElementById("dietView");if(d)obs.observe(d,{childList:true,subtree:true});ensureAll();try{if(typeof renderDiet==="function")renderDiet()}catch(e){}},500);
 })();
