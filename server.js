@@ -2,8 +2,8 @@ import express from "express";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const MODEL = process.env.OPENAI_MODEL || "gpt-5.6-terra";
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN || "https://infaval.github.io")
   .split(",")
   .map(x => x.trim())
@@ -57,34 +57,65 @@ const FOOD_IDS = FOOD_CATALOG.map(x => x[0]);
 const FOOD_TEXT = FOOD_CATALOG.map(([id, name]) => `${id}: ${name}`).join("\n");
 
 function requireKey(res) {
-  if (!OPENAI_API_KEY) {
-    res.status(503).json({ error: "El servidor IA todavía no tiene configurada OPENAI_API_KEY." });
+  if (!GEMINI_API_KEY) {
+    res.status(503).json({ error: "El servidor IA todavía no tiene configurada GEMINI_API_KEY." });
     return false;
   }
   return true;
 }
 
-async function openAI(body) {
-  const response = await fetch("https://api.openai.com/v1/responses", {
+function dataUrlToInlinePart(dataUrl) {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl || "");
+  if (!match) throw new Error("Formato de imagen no válido");
+  return {
+    inline_data: {
+      mime_type: match[1],
+      data: match[2]
+    }
+  };
+}
+
+async function gemini({ parts, schema, maxOutputTokens = 1600 }) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`;
+  const response = await fetch(url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      "x-goog-api-key": GEMINI_API_KEY,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseJsonSchema: schema,
+        maxOutputTokens,
+        temperature: 0.2
+      }
+    })
   });
-  const text = await response.text();
+
+  const raw = await response.text();
   if (!response.ok) {
-    console.error("OpenAI error", response.status, text.slice(0, 1200));
-    throw new Error(`OpenAI ${response.status}`);
+    console.error("Gemini error", response.status, raw.slice(0, 1600));
+    throw new Error(`Gemini ${response.status}`);
   }
-  const json = JSON.parse(text);
-  if (!json.output_text) throw new Error("La IA no devolvió texto estructurado");
-  return JSON.parse(json.output_text);
+
+  const json = JSON.parse(raw);
+  const text = (json.candidates || [])
+    .flatMap(c => c?.content?.parts || [])
+    .map(p => p?.text || "")
+    .join("")
+    .trim();
+
+  if (!text) {
+    console.error("Gemini empty response", raw.slice(0, 1600));
+    throw new Error("Gemini no devolvió contenido");
+  }
+  return JSON.parse(text);
 }
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, aiConfigured: Boolean(OPENAI_API_KEY), model: MODEL });
+  res.json({ ok: true, aiConfigured: Boolean(GEMINI_API_KEY), provider: "gemini", model: MODEL });
 });
 
 app.post("/api/analyze-pantry", async (req, res) => {
@@ -135,33 +166,20 @@ app.post("/api/analyze-pantry", async (req, res) => {
   };
 
   try {
-    const data = await openAI({
-      model: MODEL,
-      store: false,
-      max_output_tokens: 1400,
-      input: [{
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `Analiza esta foto de nevera, despensa, compra o alimentos. Identifica SOLO los alimentos del catálogo cuando sean razonablemente visibles. No inventes marcas ni cantidades exactas: usa cantidad aproximada o \"visible\". Los alimentos del catálogo que ya estaban marcados son: ${currentPantry.join(", ") || "ninguno"}.\n\nCATÁLOGO:\n${FOOD_TEXT}\n\nLos objetos visibles que no encajen en el catálogo van en unknown_items. Propón hasta 3 comidas sencillas, altas en proteína y realistas usando prioritariamente lo detectado. No des consejos médicos.`
-          },
-          { type: "input_image", image_url: image, detail: "high" }
-        ]
-      }],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "pantry_analysis",
-          strict: true,
-          schema
-        }
-      }
+    const data = await gemini({
+      maxOutputTokens: 1400,
+      schema,
+      parts: [
+        {
+          text: `Analiza esta foto de nevera, despensa, compra o alimentos. Identifica SOLO los alimentos del catálogo cuando sean razonablemente visibles. No inventes marcas ni cantidades exactas: usa cantidad aproximada o \"visible\". Los alimentos del catálogo que ya estaban marcados son: ${currentPantry.join(", ") || "ninguno"}.\n\nCATÁLOGO:\n${FOOD_TEXT}\n\nLos objetos visibles que no encajen en el catálogo van en unknown_items. Propón hasta 3 comidas sencillas, altas en proteína y realistas usando prioritariamente lo detectado. No des consejos médicos.`
+        },
+        dataUrlToInlinePart(image)
+      ]
     });
     res.json(data);
   } catch (err) {
     console.error(err);
-    res.status(502).json({ error: "No he podido analizar la foto con IA." });
+    res.status(502).json({ error: "No he podido analizar la foto con Gemini." });
   }
 });
 
@@ -186,30 +204,17 @@ app.post("/api/coach-review", async (req, res) => {
   };
 
   try {
-    const data = await openAI({
-      model: MODEL,
-      store: false,
-      max_output_tokens: 1700,
-      input: [{
-        role: "user",
-        content: [{
-          type: "input_text",
-          text: `Actúa como revisor conservador de un programa de hipertrofia. Analiza únicamente los datos suministrados. No cambies automáticamente ejercicios, series, cargas ni calorías. Señala tendencias útiles, estancamientos y señales de dolor. Una sesión mala aislada no justifica cambios. Si hay dolor alto o persistente, recomienda revisar técnica/rango y valoración profesional si procede, sin diagnosticar. Para peso y cintura, evita conclusiones por una sola medición.\n\nREGISTROS DE ENTRENAMIENTO:\n${JSON.stringify(logs)}\n\nMEDIDAS:\n${JSON.stringify(measures)}`
-        }]
-      }],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "coach_review",
-          strict: true,
-          schema
-        }
-      }
+    const data = await gemini({
+      maxOutputTokens: 1700,
+      schema,
+      parts: [{
+        text: `Actúa como revisor conservador de un programa de hipertrofia. Analiza únicamente los datos suministrados. No cambies automáticamente ejercicios, series, cargas ni calorías. Señala tendencias útiles, estancamientos y señales de dolor. Una sesión mala aislada no justifica cambios. Si hay dolor alto o persistente, recomienda revisar técnica/rango y valoración profesional si procede, sin diagnosticar. Para peso y cintura, evita conclusiones por una sola medición.\n\nREGISTROS DE ENTRENAMIENTO:\n${JSON.stringify(logs)}\n\nMEDIDAS:\n${JSON.stringify(measures)}`
+      }]
     });
     res.json(data);
   } catch (err) {
     console.error(err);
-    res.status(502).json({ error: "No he podido completar la revisión IA." });
+    res.status(502).json({ error: "No he podido completar la revisión con Gemini." });
   }
 });
 
@@ -219,5 +224,5 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`BodyGym PT AI escuchando en puerto ${PORT}`);
+  console.log(`BodyGym PT AI (Gemini) escuchando en puerto ${PORT}`);
 });
