@@ -67,39 +67,93 @@ function requireKey(res) {
 function dataUrlToInlinePart(dataUrl) {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(dataUrl || "");
   if (!match) throw new Error("Formato de imagen no válido");
-  return { inline_data: { mime_type: match[1], data: match[2] } };
+  return { inlineData: { mimeType: match[1], data: match[2] } };
 }
 
-async function gemini({ parts, schema, maxOutputTokens = 1600 }) {
+function toLegacyResponseSchema(value) {
+  if (Array.isArray(value)) return value.map(toLegacyResponseSchema);
+  if (!value || typeof value !== "object") return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (k === "additionalProperties") continue;
+    out[k] = toLegacyResponseSchema(v);
+  }
+  return out;
+}
+
+function geminiError(raw, status) {
+  let message = "";
+  let code = status;
+  try {
+    const parsed = JSON.parse(raw);
+    message = parsed?.error?.message || "";
+    code = parsed?.error?.code || status;
+  } catch (_) {}
+  const err = new Error(message || `Gemini HTTP ${status}`);
+  err.status = Number(code) || status;
+  err.raw = raw;
+  return err;
+}
+
+async function requestGemini({ parts, schema, maxOutputTokens, useSchema }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`;
+  const generationConfig = {
+    responseMimeType: "application/json",
+    maxOutputTokens,
+    temperature: 0.2
+  };
+  if (useSchema && schema) generationConfig.responseSchema = toLegacyResponseSchema(schema);
+
+  const requestParts = useSchema || !schema
+    ? parts
+    : [...parts, { text: `Devuelve EXCLUSIVAMENTE JSON válido. Debe respetar esta estructura aproximada: ${JSON.stringify(schema)}` }];
+
   const response = await fetch(url, {
     method: "POST",
     headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseJsonSchema: schema,
-        maxOutputTokens,
-        temperature: 0.2
-      }
+      contents: [{ role: "user", parts: requestParts }],
+      generationConfig
     })
   });
+
   const raw = await response.text();
-  if (!response.ok) {
-    console.error("Gemini error", response.status, raw.slice(0, 1800));
-    let detail = "";
-    try { detail = JSON.parse(raw)?.error?.message || ""; } catch (_) {}
-    throw new Error(detail || `Gemini ${response.status}`);
+  if (!response.ok) throw geminiError(raw, response.status);
+
+  let json;
+  try { json = JSON.parse(raw); }
+  catch (_) { throw new Error("Gemini devolvió una respuesta HTTP válida pero no JSON."); }
+
+  const text = (json.candidates || [])
+    .flatMap(c => c?.content?.parts || [])
+    .map(p => p?.text || "")
+    .join("")
+    .trim();
+  if (!text) {
+    const block = json?.promptFeedback?.blockReason || json?.candidates?.[0]?.finishReason || "sin contenido";
+    throw new Error(`Gemini no devolvió contenido (${block}).`);
   }
-  const json = JSON.parse(raw);
-  const text = (json.candidates || []).flatMap(c => c?.content?.parts || []).map(p => p?.text || "").join("").trim();
-  if (!text) throw new Error("Gemini no devolvió contenido");
-  return JSON.parse(text);
+  try { return JSON.parse(text); }
+  catch (_) { throw new Error("Gemini respondió, pero el JSON generado no se pudo interpretar."); }
+}
+
+async function gemini({ parts, schema, maxOutputTokens = 1600 }) {
+  try {
+    return await requestGemini({ parts, schema, maxOutputTokens, useSchema: true });
+  } catch (firstErr) {
+    console.warn("Gemini structured request failed; retrying JSON-only", firstErr.status || "", firstErr.message);
+    if ([401, 403, 404, 429].includes(Number(firstErr.status))) throw firstErr;
+    try {
+      return await requestGemini({ parts, schema, maxOutputTokens, useSchema: false });
+    } catch (secondErr) {
+      console.error("Gemini fallback failed", secondErr.status || "", secondErr.message);
+      throw secondErr;
+    }
+  }
 }
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, aiConfigured: Boolean(GEMINI_API_KEY), provider: "gemini", model: MODEL, pantryVision: true, mealAdaptation: true });
+  res.json({ ok: true, aiConfigured: Boolean(GEMINI_API_KEY), provider: "gemini", model: MODEL, pantryVision: true, mealAdaptation: true, backendVersion: "vision-fallback-v2" });
 });
 
 app.post("/api/analyze-pantry", async (req, res) => {
@@ -125,15 +179,29 @@ app.post("/api/analyze-pantry", async (req, res) => {
       maxOutputTokens: 1500,
       schema,
       parts: [
-        { text: `Analiza esta foto de nevera, despensa, compra o alimentos. Identifica los alimentos visibles con prudencia. Para los que encajen en el catálogo usa foods. Si ves claramente un ALIMENTO que no está en el catálogo, inclúyelo en extra_foods; no incluyas utensilios, envases vacíos ni objetos no alimentarios. No inventes marcas ni cantidades exactas: usa cantidad aproximada o \"visible\". Que un alimento no salga en la foto NO significa que ya no esté en casa. Los alimentos ya marcados eran: ${currentPantry.join(", ") || "ninguno"}.\n\nCATÁLOGO:\n${FOOD_TEXT}\n\nPropón hasta 3 ideas sencillas y altas en proteína usando prioritariamente lo visible. No des consejos médicos.` },
+        { text: `Analiza esta foto de nevera, despensa, compra o alimentos. Identifica los alimentos visibles con prudencia. Para los que encajen en el catálogo usa foods. Si ves claramente un ALIMENTO que no está en el catálogo, inclúyelo en extra_foods; no incluyas utensilios, envases vacíos ni objetos no alimentarios. No inventes marcas ni cantidades exactas: usa cantidad aproximada o \"visible\". Que un alimento no salga en la foto NO significa que ya no esté en casa. Los alimentos ya marcados eran: ${currentPantry.join(", ") || "ninguno"}.\n\nCATÁLOGO:\n${FOOD_TEXT}\n\nDevuelve un objeto con foods, extra_foods, meal_ideas y note. Propón hasta 3 ideas sencillas y altas en proteína usando prioritariamente lo visible. No des consejos médicos.` },
         dataUrlToInlinePart(image)
       ]
     });
-    console.log("Pantry analyzed", { foods: data.foods?.length || 0, extra: data.extra_foods?.length || 0 });
+    if (!Array.isArray(data.foods)) data.foods = [];
+    if (!Array.isArray(data.extra_foods)) data.extra_foods = [];
+    if (!Array.isArray(data.meal_ideas)) data.meal_ideas = [];
+    if (typeof data.note !== "string") data.note = "";
+    console.log("Pantry analyzed", { foods: data.foods.length, extra: data.extra_foods.length });
     res.json(data);
   } catch (err) {
-    console.error("Pantry analysis failed", err);
-    res.status(502).json({ error: `No he podido analizar la foto con Gemini: ${err.message || "error desconocido"}` });
+    console.error("Pantry analysis failed", err.status || "", err.message);
+    const status = Number(err.status) || 502;
+    const friendly = status === 429
+      ? "Gemini ha rechazado la petición por cuota/límite (429). Revisa el nivel gratuito o espera unos minutos."
+      : status === 403
+        ? "Gemini ha rechazado la clave o el proyecto (403). Revisa que la API key pertenezca al proyecto correcto y tenga acceso a Gemini API."
+        : status === 401
+          ? "La clave de Gemini no es válida (401)."
+          : status === 404
+            ? `El modelo ${MODEL} no está disponible para esta clave/proyecto (404).`
+            : err.message || "error desconocido";
+    res.status(502).json({ error: `No he podido analizar la foto con Gemini: ${friendly}` });
   }
 });
 
@@ -149,10 +217,10 @@ app.post("/api/suggest-meal", async (req, res) => {
   const fat = Math.max(0, Math.min(100, Number(target.fat_g) || 15));
   const schema = { type: "object", additionalProperties: false, required: ["meal", "note"], properties: { meal: { type: "object", additionalProperties: false, required: ["title", "items", "macros"], properties: { title: { type: "string" }, items: { type: "array", minItems: 2, maxItems: 7, items: { type: "object", additionalProperties: false, required: ["food_id", "name", "quantity"], properties: { food_id: { type: "string" }, name: { type: "string" }, quantity: { type: "string" } } } }, macros: { type: "object", additionalProperties: false, required: ["kcal", "protein_g", "carbs_g", "fat_g"], properties: { kcal: { type: "number" }, protein_g: { type: "number" }, carbs_g: { type: "number" }, fat_g: { type: "number" } } } } }, note: { type: "string" } } };
   try {
-    const data = await gemini({ maxOutputTokens: 1200, schema, parts: [{ text: `Crea UNA alternativa realista para ${currentMeal.title || "esta comida"} usando ÚNICAMENTE alimentos disponibles.\n\nCATÁLOGO DISPONIBLE:\n${pantry.map(x => `${x.id}: ${x.name}`).join("\n") || "ninguno"}\n\nOTROS ALIMENTOS DISPONIBLES:\n${customFoods.join("\n") || "ninguno"}\n\nCOMIDA ACTUAL:\n${JSON.stringify(currentMeal)}\n\nOBJETIVO APROXIMADO: ${kcal} kcal; proteína ${protein} g; hidratos ${carbs} g; grasa ${fat} g.\n\nDa cantidades concretas. Intenta ±10% kcal y no más de 5 g por debajo en proteína. No añadas alimentos no disponibles. Las macros son aproximadas.` }] });
+    const data = await gemini({ maxOutputTokens: 1200, schema, parts: [{ text: `Crea UNA alternativa realista para ${currentMeal.title || "esta comida"} usando ÚNICAMENTE alimentos disponibles.\n\nCATÁLOGO DISPONIBLE:\n${pantry.map(x => `${x.id}: ${x.name}`).join("\n") || "ninguno"}\n\nOTROS ALIMENTOS DISPONIBLES:\n${customFoods.join("\n") || "ninguno"}\n\nCOMIDA ACTUAL:\n${JSON.stringify(currentMeal)}\n\nOBJETIVO APROXIMADO: ${kcal} kcal; proteína ${protein} g; hidratos ${carbs} g; grasa ${fat} g.\n\nDevuelve un objeto con meal y note. Da cantidades concretas. Intenta ±10% kcal y no más de 5 g por debajo en proteína. No añadas alimentos no disponibles. Las macros son aproximadas.` }] });
     res.json(data);
   } catch (err) {
-    console.error("Meal suggestion failed", err);
+    console.error("Meal suggestion failed", err.status || "", err.message);
     res.status(502).json({ error: `No he podido crear una alternativa con Gemini: ${err.message || "error desconocido"}` });
   }
 });
@@ -164,10 +232,10 @@ app.post("/api/coach-review", async (req, res) => {
   if (!logs.length && !measures.length) return res.status(400).json({ error: "Aún no hay datos suficientes para revisar." });
   const schema = { type: "object", additionalProperties: false, required: ["status", "summary", "training", "nutrition", "watchouts", "next_review"], properties: { status: { type: "string", enum: ["bien", "vigilar", "revisar"] }, summary: { type: "string" }, training: { type: "array", maxItems: 5, items: { type: "string" } }, nutrition: { type: "array", maxItems: 4, items: { type: "string" } }, watchouts: { type: "array", maxItems: 4, items: { type: "string" } }, next_review: { type: "string" } } };
   try {
-    const data = await gemini({ maxOutputTokens: 1700, schema, parts: [{ text: `Actúa como revisor conservador de hipertrofia. No cambies automáticamente ejercicios, series, cargas ni calorías. Señala tendencias, estancamientos y dolor. Una sesión mala aislada no justifica cambios.\n\nENTRENAMIENTO:\n${JSON.stringify(logs)}\n\nMEDIDAS:\n${JSON.stringify(measures)}` }] });
+    const data = await gemini({ maxOutputTokens: 1700, schema, parts: [{ text: `Actúa como revisor conservador de hipertrofia. No cambies automáticamente ejercicios, series, cargas ni calorías. Señala tendencias, estancamientos y dolor. Una sesión mala aislada no justifica cambios.\n\nDevuelve un objeto con status, summary, training, nutrition, watchouts y next_review.\n\nENTRENAMIENTO:\n${JSON.stringify(logs)}\n\nMEDIDAS:\n${JSON.stringify(measures)}` }] });
     res.json(data);
   } catch (err) {
-    console.error("Coach review failed", err);
+    console.error("Coach review failed", err.status || "", err.message);
     res.status(502).json({ error: `No he podido completar la revisión: ${err.message || "error desconocido"}` });
   }
 });
@@ -178,5 +246,5 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`BodyGym PT AI (Gemini + visión + macros) escuchando en puerto ${PORT}`);
+  console.log(`BodyGym PT AI (Gemini + visión + macros + fallback) escuchando en puerto ${PORT}`);
 });
