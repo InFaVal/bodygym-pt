@@ -1,5 +1,5 @@
-const CACHE_NAME="bodygym-pt-v19";
-const APP_ASSETS=["./","./index.html","./style.css?v=14","./app.js?v=14","./advisor.js?v=1","./ai-config.js?v=2","./ai.js?v=3","./ai-hotfix.js?v=1","./manifest.json","./data/torso-a.json","./data/pierna-a.json","./data/torso-b.json","./data/pierna-b.json","./assets/icon.svg"];
+const CACHE_NAME="bodygym-pt-v20";
+const APP_ASSETS=["./","./index.html","./style.css?v=14","./app.js?v=14","./advisor.js?v=1","./ai-config.js?v=2","./ai.js?v=3","./ai-hotfix.js?v=1","./pantry-custom.js?v=1","./manifest.json","./data/torso-a.json","./data/pierna-a.json","./data/torso-b.json","./data/pierna-b.json","./assets/icon.svg"];
 self.addEventListener("install",event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_ASSETS)).catch(()=>{}));});
 self.addEventListener("activate",event=>{event.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))),self.clients.claim()]));});
 self.addEventListener("fetch",event=>{if(event.request.method!=="GET")return;event.respondWith(fetch(event.request,{cache:"no-store"}).then(response=>{if(response&&response.ok&&event.request.url.startsWith(self.location.origin)){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy)).catch(()=>{});}return response;}).catch(()=>caches.match(event.request).then(cached=>cached||caches.match("./index.html"))));});
