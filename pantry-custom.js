@@ -22,6 +22,7 @@
     if(/huevo|clara|pavo|jamon|ternera|vacuno|carne|cerdo|pollo|lomo|pescado|merluza|bacalao|atun|salmon|sardina|caballa|bonito|gamba|langostino|marisco|tofu|tempeh|seitan/.test(n))return"Proteínas";
     if(/yogur|skyr|queso|cottage|leche|kefir|whey|proteina/.test(n))return"Desayuno y lácteos";
     if(/arroz|pan|pasta|patata|boniato|avena|cereal|tortilla|wrap|quinoa|cuscus|couscous|lenteja|garbanzo|alubia|legumbre/.test(n))return"Hidratos";
+    if(/nuez|almendra|avellana|pistacho|cacahuete|anacardo|fruto seco|semilla|chia|lino|sesamo|crema de cacahuete|crema de almendra|aceite/.test(n))return"Grasas y frutos secos";
     if(/manzana|pera|platano|banana|naranja|mandarina|kiwi|pina|fresa|frambuesa|arandano|uva|melon|sandia|mango|aguacate|tomate|cebolla|lechuga|rucula|espinaca|brocoli|coliflor|calabacin|pimiento|zanahoria|pepino|verdura|fruta|ensalada|seta|champinon/.test(n))return"Fruta y verdura";
     return"Otros detectados por IA";
   }
@@ -35,17 +36,17 @@
     return next&&next.classList.contains("pantry-grid")?next:null;
   }
 
-  function ensureOtherGrid(card){
-    let grid=card.querySelector('[data-ai-custom-grid="Otros detectados por IA"]');
+  function ensureCustomGrid(card,category){
+    let grid=card.querySelector(`[data-ai-custom-grid="${category}"]`);
     if(grid)return grid;
     const aiCard=card.querySelector(".ai-card");
     const title=document.createElement("div");
     title.className="pantry-category ai-custom-category";
-    title.dataset.aiCustomCategory="1";
-    title.textContent="Otros detectados por IA";
+    title.dataset.aiCustomCategory=category;
+    title.textContent=category;
     grid=document.createElement("div");
     grid.className="pantry-grid ai-custom-category";
-    grid.dataset.aiCustomGrid="Otros detectados por IA";
+    grid.dataset.aiCustomGrid=category;
     card.insertBefore(title,aiCard||null);
     card.insertBefore(grid,aiCard||null);
     return grid;
@@ -97,7 +98,7 @@
     const grouped={};
     items.forEach(item=>(grouped[item.category]||(grouped[item.category]=[])).push(item));
     Object.entries(grouped).forEach(([category,rows])=>{
-      const grid=category==="Otros detectados por IA"?ensureOtherGrid(card):findGrid(card,category)||ensureOtherGrid(card);
+      const grid=findGrid(card,category)||ensureCustomGrid(card,category);
       rows.forEach(item=>grid.appendChild(makeButton(item.name,item.active)));
     });
   }
