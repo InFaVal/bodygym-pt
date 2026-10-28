@@ -1,4 +1,4 @@
-const CACHE_NAME="bodygym-pt-v23";
+const CACHE_NAME="bodygym-pt-v24";
 const APP_ASSETS=["./","./index.html","./style.css?v=14","./app.js?v=14","./advisor.js?v=1","./ai-config.js?v=2","./ai.js?v=3","./ai-hotfix.js?v=2","./pantry-custom.js?v=3","./diet-ai-week.js?v=1","./manifest.json","./data/torso-a.json","./data/pierna-a.json","./data/torso-b.json","./data/pierna-b.json","./assets/icon.svg"];
 self.addEventListener("install",event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_ASSETS)).catch(()=>{}));});
 self.addEventListener("activate",event=>{event.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)))),self.clients.claim()]));});
